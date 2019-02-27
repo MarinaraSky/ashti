@@ -17,6 +17,8 @@ typedef struct args
 static void
 working(args *create);
 
+void parseHTML(uint64_t job);
+
 t_pool *init_t_pool(uint64_t numOfThreads)
 {
 	if(numOfThreads == 0)
@@ -83,7 +85,7 @@ void working(args *create)
 		pthread_mutex_lock(&create->pool->lock);
 		uint64_t job = get_job(create->pool->queue);
 		pthread_mutex_unlock(&create->pool->lock);
-		printf("%lu: My turn\n", job);
+		parseHTML(job);
 		create->pool->working--;
 		close(job);
 	}
@@ -112,22 +114,25 @@ queue_t *init_jobs(void)
 	return jobs;
 }
 
-void add_job(queue_t *jobs, uint64_t num)
+void add_job(t_pool *pool, uint64_t num)
 {
+	pthread_mutex_lock(&pool->lock);
 	queuelist_t *newJob = calloc(1, sizeof(*newJob));
 	newJob->num = num;
 	newJob->next = NULL;
-	if(jobs->head == NULL)
+	if(pool->queue->head == NULL)
 	{
-		jobs->head = newJob;
+		pthread_mutex_unlock(&pool->lock);
+		pool->queue->head = newJob;
 		return;
 	}
-	queuelist_t *index = jobs->head;
+	queuelist_t *index = pool->queue->head;
 	while(index->next != NULL)
 	{
 		index = index->next;	
 	}
 	index->next = newJob;
+	pthread_mutex_unlock(&pool->lock);
 	return;
 }
 

@@ -6,7 +6,7 @@ CFLAGS +=-D_XOPEN_SOURCE=700 -pthread
 
 comp = $(CC) $(CFLAGS) $^ -o ./bin/$@
 
-ashti: ashti.c threads.o
+ashti: src/ashti.c src/threads.o
 	mkdir -p ./bin
 	$(comp)
 

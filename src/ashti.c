@@ -4,6 +4,8 @@
 #include <semaphore.h>
 #include <stdio.h>
 #include <netinet/in.h>
+#include <unistd.h>
+#include <string.h>
 
 #define PORTNUM 9001
 
@@ -13,6 +15,8 @@ typedef struct socketStruct
     struct sockaddr *address;
     int             sockaddrlen;
 } socketStruct;
+
+void parseHTML(uint64_t job);
 
 int main(void)
 {
@@ -49,13 +53,22 @@ int main(void)
 		socketNum = accept(mySock.socketFd, 
 				mySock.address, 
 				(socklen_t *)&mySock.sockaddrlen);
-		pthread_mutex_lock(&myPool->lock);
-		add_job(myPool->queue, socketNum);
-		pthread_mutex_unlock(&myPool->lock);
+		add_job(myPool, socketNum);
 		sem_post(&myPool->mySem);
 	}
 
 	//sleep(1);
 	destroy_t_pool(myPool);
 	return 0;
+}
+
+void parseHTML(uint64_t job)
+{
+	char reply[] = "You have reached my server.";
+	uint64_t size = 256;
+	char *buff = calloc(size, sizeof(*buff));
+	read(job, buff, size);
+	printf("%s\n", buff);
+	write(job, reply, strlen(reply));
+	return;
 }

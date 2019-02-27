@@ -35,6 +35,6 @@ t_pool *init_t_pool(uint64_t numOfThreads);
 void destroy_t_pool(t_pool *pool);
 
 queue_t *init_jobs(void);
-void add_job(queue_t *jobs, uint64_t num);
+void add_job(t_pool* pool, uint64_t num);
 uint64_t get_job(queue_t *jobs);
 void clear_jobs(queue_t *jobs);
