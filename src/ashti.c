@@ -6,6 +6,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/sendfile.h>
+#include <fcntl.h>
 
 #define PORTNUM 9001
 
@@ -17,7 +19,6 @@ typedef struct socketStruct
 } socketStruct;
 
 void parseHTML(uint64_t job);
-
 int main(void)
 {
 	t_pool *myPool = init_t_pool(8);
@@ -54,7 +55,6 @@ int main(void)
 				mySock.address, 
 				(socklen_t *)&mySock.sockaddrlen);
 		add_job(myPool, socketNum);
-		sem_post(&myPool->mySem);
 	}
 
 	//sleep(1);
@@ -64,11 +64,57 @@ int main(void)
 
 void parseHTML(uint64_t job)
 {
-	char reply[] = "You have reached my server.";
+	//char reply[] = "You have reached my server.";
+	char ret200[] = "HTTP/1.1 200 OK\r\nContent-type:text/html\r\nContent-Length:%d\r\n\r\n";
+	char error400[] = "HTTP/1.1 400 Bad Request\r\nContent-type:text/html\r\nContent-Length:105\r\n\r\n\
+<!doctype html>\n\
+<html lang=\"en\">\n\
+<head>\n\
+<title>Error 400</title>\n\
+</head>\n\
+<body>\n\
+<h2>Invalid Request</h2>\n\
+</body>\n\
+</html>\n";
 	uint64_t size = 256;
 	char *buff = calloc(size, sizeof(*buff));
 	read(job, buff, size);
-	printf("%s\n", buff);
-	write(job, reply, strlen(reply));
+	uint64_t tokenId = 0;
+	char *savePtr = NULL;
+	char *token = strtok_r(buff, " ", &savePtr);
+	while(token != NULL)
+	{
+		switch(tokenId)
+		{
+			case(0):
+			{
+				if(strcmp(token, "GET") == 0)
+				{
+					printf("GET REQUEST HERE\n");
+				}
+				else
+				{
+					write(job, error400, strlen(error400));
+				}
+			}
+			case(1):
+			{
+				if(strcmp(token, "/") == 0 || strcmp(token, "/index.html") == 0)
+				{
+					uint64_t index = open("www/index.html", O_RDONLY);
+					uint64_t fSize = lseek(index, 0, SEEK_END);
+					lseek(index, 0, SEEK_SET);
+					char reply[500] = {0};
+					sprintf(reply, ret200, fSize); 
+					write(job, reply, strlen(reply));
+					sendfile(job, index, NULL, fSize);
+				}
+			}
+		}
+		//printf("%s\n", token);
+		token = strtok_r(NULL, " ", &savePtr);
+		tokenId++;
+	}
+	//write(job, reply, strlen(reply));
 	return;
 }

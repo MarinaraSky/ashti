@@ -122,8 +122,9 @@ void add_job(t_pool *pool, uint64_t num)
 	newJob->next = NULL;
 	if(pool->queue->head == NULL)
 	{
-		pthread_mutex_unlock(&pool->lock);
 		pool->queue->head = newJob;
+		pthread_mutex_unlock(&pool->lock);
+		sem_post(&pool->mySem);
 		return;
 	}
 	queuelist_t *index = pool->queue->head;
@@ -133,6 +134,7 @@ void add_job(t_pool *pool, uint64_t num)
 	}
 	index->next = newJob;
 	pthread_mutex_unlock(&pool->lock);
+	sem_post(&pool->mySem);
 	return;
 }
 
