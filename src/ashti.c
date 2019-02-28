@@ -140,10 +140,17 @@ void parseHTML(uint64_t job)
 						FILE *script = popen(testDir, "r");
 						char *results = calloc(257, sizeof(*results));
 						char *fileBuff = calloc(257, sizeof(*fileBuff));
-						while(fread(fileBuff, 1, 256, script) == 256)
+						int numRead = 0;
+						while((numRead = fread(fileBuff, 1, 256, script)) == 256)
 						{
-							results = realloc(results, strlen(results) + 257);
-							strncat(results, fileBuff, 256);
+							results = realloc(results, strlen(results) + numRead);
+							strncat(results, fileBuff, numRead);
+						}
+						results = realloc(results, strlen(results) + numRead);
+						strncat(results, fileBuff, numRead);
+						if(pclose(script) != 0)
+						{
+							printf("ERROR 500\n");
 						}
 						banner = getBanner(0, strlen(results));
 						write(job, banner, strlen(banner));
