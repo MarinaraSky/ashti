@@ -19,7 +19,7 @@ typedef struct socketStruct
 } socketStruct;
 
 void parseHTML(uint64_t job);
-char *getBanner(uint64_t type, uint64_t size);
+char *getBanner(uint64_t type, uint64_t size, char *fLoc);
 
 char *wwwDir = NULL;
 
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 void parseHTML(uint64_t job)
 {
 	uint64_t size = 256;
-	char *buff = calloc(size, sizeof(*buff));
+	char *buff = calloc(size, sizeof(*buff)+1);
 	read(job, buff, size);
 	uint64_t tokenId = 0;
 	char *savePtr = NULL;
@@ -89,7 +89,7 @@ void parseHTML(uint64_t job)
 			{
 				if(strcmp(token, "GET") != 0)
 				{
-					char *error = getBanner(1, 0);
+					char *error = getBanner(1, 0, NULL);
 					write(job, error, strlen(error));
 					free(error);
 					free(buff);
@@ -109,7 +109,7 @@ void parseHTML(uint64_t job)
 					int64_t index = open(fileLoc, O_RDONLY);
 					uint64_t fSize = lseek(index, 0, SEEK_END);
 					lseek(index, 0, SEEK_SET);
-					banner = getBanner(0, fSize);
+					banner = getBanner(0, fSize, fileLoc);
 					printf("Testing: %s\n", fileLoc);
 					write(job, banner, strlen(banner));
 					sendfile(job, index, NULL, fSize);
@@ -138,7 +138,7 @@ void parseHTML(uint64_t job)
 						if(index == -1)
 						{
 							printf("ERROR 404\n");
-							banner = getBanner(2, 0);
+							banner = getBanner(2, 0, NULL);
 							write(job, banner, strlen(banner));
 							free(banner);
 							free(buff);
@@ -172,13 +172,13 @@ void parseHTML(uint64_t job)
 						if(pclose(script) != 0)
 						{
 							fprintf(stderr, "ERROR 500\n");
-							banner = getBanner(3, 0);
+							banner = getBanner(3, 0, NULL);
 							write(job, banner, strlen(banner));
 							free(banner);
 							free(buff);
 							return;
 						}
-						banner = getBanner(0, strlen(results));
+						banner = getBanner(0, strlen(results), testDir);
 						write(job, banner, strlen(banner));
 						write(job, results, strlen(results));
 						free(results);
@@ -187,7 +187,7 @@ void parseHTML(uint64_t job)
 					}
 					uint64_t fSize = lseek(index, 0, SEEK_END);
 					lseek(index, 0, SEEK_SET);
-					char *banner = getBanner(0, fSize);
+					char *banner = getBanner(0, fSize, fileLoc);
 					write(job, banner, strlen(banner));
 					sendfile(job, index, NULL, fSize);
 				}
@@ -203,7 +203,7 @@ void parseHTML(uint64_t job)
 	return;
 }
 
-char *getBanner(uint64_t type, uint64_t size)
+char *getBanner(uint64_t type, uint64_t size, char *fLoc)
 {
 	char httpBanner[] = "HTTP/1.1 %d %s\r\n"
 						"Content-Type:%s\r\n"
@@ -213,8 +213,34 @@ char *getBanner(uint64_t type, uint64_t size)
 	switch(type)
 	{
 		case(0): 	/* OK */
-			asprintf(&retString, httpBanner, 200, "OK", "text/html", size);
-			break;
+			{
+				char *fExt = strrchr(fLoc, '.');
+				if(strcmp(fExt, ".css") == 0)
+				{
+					asprintf(&retString, httpBanner, 200, "OK", "text/css", size);
+				}
+				else if(strcmp(fExt, ".txt") == 0)
+				{
+					asprintf(&retString, httpBanner, 200, "OK", "text/plain", size);
+				}
+				else if(strcmp(fExt, ".jpeg") == 0)
+				{
+					asprintf(&retString, httpBanner, 200, "OK", "image/jpeg", size);
+				}
+				else if(strcmp(fExt, ".png") == 0)
+				{
+					asprintf(&retString, httpBanner, 200, "OK", "image/png", size);
+				}
+				else if(strcmp(fExt, ".gif") == 0)
+				{
+					asprintf(&retString, httpBanner, 200, "OK", "image/gif", size);
+				}
+				else
+				{
+					asprintf(&retString, httpBanner, 200, "OK", "text/html", size);
+				}
+				break;
+			}
 		case(1):	/* 400 */
 			{
 				char err400[] = "<!doctype html>\n"
