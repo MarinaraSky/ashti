@@ -92,6 +92,7 @@ void parseHTML(uint64_t job)
 					char *error = getBanner(1, 0);
 					write(job, error, strlen(error));
 					free(error);
+					free(buff);
 					return;
 				}
 				break;
@@ -133,21 +134,32 @@ void parseHTML(uint64_t job)
 							banner = getBanner(2, 0);
 							write(job, banner, strlen(banner));
 							free(banner);
+							free(buff);
 							return;
 						}
 						/* Script */
 						printf("Trying %s\n", testDir);
 						FILE *script = popen(testDir, "r");
-						char *results = calloc(257, sizeof(*results));
-						char *fileBuff = calloc(257, sizeof(*fileBuff));
-						int numRead = 0;
-						while((numRead = fread(fileBuff, 1, 256, script)) == 256)
+						char *results = NULL;
+						char *fileBuff = NULL;
+						if(script != NULL)
 						{
-							results = realloc(results, strlen(results) + numRead);
+							results = calloc(257, sizeof(*results));
+							fileBuff = calloc(257, sizeof(*fileBuff));
+							if(results == NULL || fileBuff == NULL)
+							{
+								fprintf(stderr, "Cgi buffs calloc failed\n");
+								exit(10);
+							}
+							int numRead = 0;
+							while((numRead = fread(fileBuff, 1, 256, script)) == 256)
+							{
+								results = realloc(results, strlen(results) + numRead + 1);
+								strncat(results, fileBuff, numRead);
+							}
+							results = realloc(results, strlen(results) + numRead + 1);
 							strncat(results, fileBuff, numRead);
 						}
-						results = realloc(results, strlen(results) + numRead);
-						strncat(results, fileBuff, numRead);
 						if(pclose(script) != 0)
 						{
 							printf("ERROR 500\n");
