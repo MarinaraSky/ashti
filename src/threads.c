@@ -61,12 +61,14 @@ t_pool *init_t_pool(uint64_t numOfThreads)
 			fprintf(stderr, "Cannot create thread\n");
 			exit(4);
 		}
+		/*
 		ret = pthread_detach(pool->threads[i].thread);
 		if(ret != 0)
 		{
 			fprintf(stderr, "Cannot detach thread\n");
 			exit(5);
 		}
+		*/
 	}
 	return pool;
 }
@@ -77,6 +79,7 @@ void working(args *create)
 {
 	mypthread_t curThread = create->pool->threads[create->id];
 	curThread.id = create->id;
+	pthread_cleanup_push(free, create);
 	while(1)
 	{
 		printf("%lu: Waiting turn\n", curThread.id);
@@ -89,15 +92,27 @@ void working(args *create)
 		create->pool->working--;
 		close(job);
 	}
-	free(create);
+	pthread_cleanup_pop(1);
 	return;
 }
 
+void reap_t_pool(t_pool* pool, uint64_t num)
+{
+	for(uint64_t i = 0; i < num; i++)
+	{
+		printf("reaping %lu\n", i);
+		pthread_cancel(pool->threads[i].thread);
+		pthread_join(pool->threads[i].thread, NULL);
+	}
+	return;
+	
+}
 void destroy_t_pool(t_pool *pool)
 {
 	sem_destroy(&pool->mySem);
 	pthread_mutex_destroy(&pool->lock);
 	free(pool->threads);
+	free(pool->queue);
 	free(pool);
 }
 
