@@ -130,6 +130,16 @@ void parseHTML(uint64_t job)
 					strcpy(fileLoc, wwwDir); /* Makes local copy of www dir string */
 					strcat(fileLoc, "index.html"); /* Adds index to file string */
 					int64_t index = open(fileLoc, O_RDONLY);
+					if(index == -1)
+					{
+						printf("ERROR 404\n");
+						banner = getBanner(2, 0, NULL);
+						write(job, banner, strlen(banner));
+						free(fileLoc);
+						free(banner);
+						free(buff);
+						return;
+					}
 					uint64_t fSize = lseek(index, 0, SEEK_END);
 					lseek(index, 0, SEEK_SET);
 					banner = getBanner(0, fSize, fileLoc);
