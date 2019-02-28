@@ -2,7 +2,7 @@ CFLAGS += -Wall -Wextra -Wpedantic -Waggregate-return -Wwrite-strings -Wfloat-eq
 
 CFLAGS += -std=c11
 
-CFLAGS +=-D_XOPEN_SOURCE=700 -pthread
+CFLAGS +=-D_XOPEN_SOURCE=700 -pthread -D_GNU_SOURCE
 
 comp = $(CC) $(CFLAGS) $^ -o ./bin/$@
 
