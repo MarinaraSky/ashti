@@ -38,3 +38,4 @@ queue_t *init_jobs(void);
 void add_job(t_pool* pool, uint64_t num);
 uint64_t get_job(queue_t *jobs);
 void clear_jobs(queue_t *jobs);
+void reap_t_pool(t_pool* pool, uint64_t num);

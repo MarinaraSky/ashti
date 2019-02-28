@@ -6,8 +6,10 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/sendfile.h>
 #include <fcntl.h>
+#include <setjmp.h>
 
 #define PORTNUM 9001
 
@@ -21,6 +23,18 @@ typedef struct socketStruct
 void parseHTML(uint64_t job);
 char *getBanner(uint64_t type, uint64_t size, char *fLoc);
 
+uint8_t RUNNING = 1;
+jmp_buf sigExit;
+
+void
+ignoreSIGINT(
+    __attribute__ ((unused))
+    int sig_num)
+{
+	RUNNING = 0;
+	longjmp(sigExit, 0);
+}
+
 char *wwwDir = NULL;
 
 int main(int argc, char **argv)
@@ -30,6 +44,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Requires directory.\n");
 		return 1;
 	}
+    struct sigaction ignore = {
+        .sa_handler = &ignoreSIGINT,
+        .sa_flags = SA_RESTART
+    };
+    sigaction(SIGINT, &ignore, NULL);
 	char *filePath = argv[1];
 	wwwDir = calloc(strlen(filePath) + 6, sizeof(*wwwDir));
 	strcat(wwwDir, filePath);
@@ -62,13 +81,16 @@ int main(int argc, char **argv)
 	}
     listen(mySock.socketFd, 2);
 	int socketNum = 0;
-	while(1)
+	setjmp(sigExit);
+	while(RUNNING)
 	{
 		socketNum = accept(mySock.socketFd, 
 				mySock.address, 
 				(socklen_t *)&mySock.sockaddrlen);
 		add_job(myPool, socketNum);
 	}
+	free(wwwDir);
+	reap_t_pool(myPool, 8);
 	destroy_t_pool(myPool);
 	return 0;
 }
@@ -93,6 +115,7 @@ void parseHTML(uint64_t job)
 					write(job, error, strlen(error));
 					free(error);
 					free(buff);
+					free(savePtr);
 					return;
 				}
 				break;
@@ -107,6 +130,16 @@ void parseHTML(uint64_t job)
 					strcpy(fileLoc, wwwDir); /* Makes local copy of www dir string */
 					strcat(fileLoc, "index.html"); /* Adds index to file string */
 					int64_t index = open(fileLoc, O_RDONLY);
+					if(index == -1)
+					{
+						printf("ERROR 404\n");
+						banner = getBanner(2, 0, NULL);
+						write(job, banner, strlen(banner));
+						free(fileLoc);
+						free(banner);
+						free(buff);
+						return;
+					}
 					uint64_t fSize = lseek(index, 0, SEEK_END);
 					lseek(index, 0, SEEK_SET);
 					banner = getBanner(0, fSize, fileLoc);
@@ -140,6 +173,7 @@ void parseHTML(uint64_t job)
 							printf("ERROR 404\n");
 							banner = getBanner(2, 0, NULL);
 							write(job, banner, strlen(banner));
+							free(fileLoc);
 							free(banner);
 							free(buff);
 							return;
@@ -176,13 +210,18 @@ void parseHTML(uint64_t job)
 							write(job, banner, strlen(banner));
 							free(banner);
 							free(buff);
+							free(fileLoc);
+							free(testDir);
 							return;
 						}
 						banner = getBanner(0, strlen(results), testDir);
 						write(job, banner, strlen(banner));
 						write(job, results, strlen(results));
+						free(testDir);
 						free(results);
 						free(fileBuff);
+						free(fileLoc);
+						free(banner);
 						break;
 					}
 					uint64_t fSize = lseek(index, 0, SEEK_END);
@@ -190,9 +229,9 @@ void parseHTML(uint64_t job)
 					char *banner = getBanner(0, fSize, fileLoc);
 					write(job, banner, strlen(banner));
 					sendfile(job, index, NULL, fSize);
+					free(banner);
+					free(fileLoc);
 				}
-				free(fileLoc);
-				free(banner);
 				break;
 			}
 		}
@@ -208,6 +247,9 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc)
 	char httpBanner[] = "HTTP/1.1 %d %s\r\n"
 						"Content-Type:%s\r\n"
 						"Content-Length:%d\r\n\r\n";
+
+	char cgiBanner[] = "HTTP/1.1 %d %s\r\n"
+					   "Content-Length:%d\r\n";
 	
 	char *retString = NULL;
 	switch(type)
@@ -235,9 +277,13 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "image/gif", size);
 				}
-				else
+				else if(strcmp(fExt, ".html") == 0)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "text/html", size);
+				}
+				else
+				{
+					asprintf(&retString, cgiBanner, 200, "OK", size);
 				}
 				break;
 			}
