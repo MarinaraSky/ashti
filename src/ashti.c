@@ -127,6 +127,13 @@ void parseHTML(uint64_t job)
 						char *testDir = calloc(strlen(wwwDir) + strlen(token) + 1, sizeof(*fileLoc));
 						strncpy(testDir, wwwDir, strlen(wwwDir) - 4); /* Takes off www part of dir string */ 
 						strcat(testDir, token + 1); /* Adds rest of file path to dir string */
+						char *cgiQuery = strchr(testDir, '?');
+						if(cgiQuery != NULL)
+						{
+							*cgiQuery = '\0';
+							cgiQuery++;
+							setenv("QUERY_STRING", cgiQuery, 1);
+						}	
 						int64_t index = open(testDir, O_RDONLY);
 						if(index == -1)
 						{
@@ -139,6 +146,8 @@ void parseHTML(uint64_t job)
 						}
 						/* Script */
 						printf("Trying %s\n", testDir);
+						testDir = realloc(testDir, strlen(testDir) + strlen(" 2>/dev/null") + 1);
+						strcat(testDir, " 2>/dev/null");
 						FILE *script = popen(testDir, "r");
 						char *results = NULL;
 						char *fileBuff = NULL;
@@ -154,15 +163,20 @@ void parseHTML(uint64_t job)
 							int numRead = 0;
 							while((numRead = fread(fileBuff, 1, 256, script)) == 256)
 							{
-								results = realloc(results, strlen(results) + numRead + 1);
+								results = realloc(results, strlen(results) + numRead + 2);
 								strncat(results, fileBuff, numRead);
 							}
-							results = realloc(results, strlen(results) + numRead + 1);
+							results = realloc(results, strlen(results) + numRead + 2);
 							strncat(results, fileBuff, numRead);
 						}
 						if(pclose(script) != 0)
 						{
-							printf("ERROR 500\n");
+							fprintf(stderr, "ERROR 500\n");
+							banner = getBanner(3, 0);
+							write(job, banner, strlen(banner));
+							free(banner);
+							free(buff);
+							return;
 						}
 						banner = getBanner(0, strlen(results));
 						write(job, banner, strlen(banner));
@@ -192,7 +206,7 @@ void parseHTML(uint64_t job)
 char *getBanner(uint64_t type, uint64_t size)
 {
 	char httpBanner[] = "HTTP/1.1 %d %s\r\n"
-						"Content-type:%s\r\n"
+						"Content-Type:%s\r\n"
 						"Content-Length:%d\r\n\r\n";
 	
 	char *retString = NULL;
@@ -234,6 +248,21 @@ char *getBanner(uint64_t type, uint64_t size)
 				break;
 			}
 		case(3):	/* 500 */
+			{
+				char err500[] = "<!doctype html>\n"
+					"<html lang=\"en\">\n"
+					"<head>\n"
+					"<title>Internal Server Error</title>\n"
+					"</head>\n"
+					"<body>\n"
+					"<h2>Error 500</h2>\n"
+					"</body>\n"
+					"</html>\n";
+				asprintf(&retString, httpBanner, 500, "Internal Server Error", "text/html", strlen(err500));
+				retString = realloc(retString, strlen(retString) + strlen(err500) + 1);
+				strcat(retString, err500);
+				break;
+			}
 			break;
 	}
 	return retString;
