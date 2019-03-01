@@ -119,6 +119,7 @@ void parseHTML(uint64_t job)
 				{
 					char *error = getBanner(1, 0, NULL, NULL);
 					write(job, error, strlen(error));
+					free(error);
 					free(buff);
 					return;
 				}
@@ -158,7 +159,9 @@ void parseHTML(uint64_t job)
 					fprintf(stderr, "NO HOST\n");
 					char *error = getBanner(1, 0, NULL, NULL);
 					write(job, error, strlen(error));
+					free(reply);
 					free(buff);
+					free(error);
 					return;
 				}
 				break;
@@ -172,6 +175,9 @@ void parseHTML(uint64_t job)
 	{
 		char *error = getBanner(2, 0, NULL, NULL);
 		write(job, error, strlen(error));
+		free(buff);
+		free(reply);
+		free(error);
 		return;
 
 	}
@@ -187,10 +193,13 @@ void parseHTML(uint64_t job)
 			/* 404 */
 			char *error = getBanner(2, 0, NULL, NULL);
 			write(job, error, strlen(error));
+			free(buff);
+			free(reply);
 			return;
 		}
 		reply = realloc(reply, strlen(body) + strlen(reply) + 1);
 		strcat(reply, body);
+		free(body);
 		write(job, reply, strlen(reply));
 	}
 	else if(fileType == 1)
@@ -235,12 +244,21 @@ void parseHTML(uint64_t job)
 			fprintf(stderr, "ERROR 500\n");
 			reply = getBanner(3, 0, NULL, NULL);
 			write(job, reply, strlen(reply));
+			free(buff);
+			free(fileBuff);
+			free(results);
+			free(cgiCmd);
+			free(reply);
 			return;
 		}
 		char *banner = getBanner(0, strlen(results), reply, NULL);
 		write(job, banner, strlen(banner));
 		write(job, results, strlen(results));
+		free(fileBuff);
+		free(results);
+		free(banner);
 	}
+	free(reply);
 	free(buff);
 	return;
 }
@@ -255,11 +273,13 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 		*fd = open(retFilePath, O_RDONLY);
 		if(*fd == -1)
 		{
+			free(retFilePath);
 			return NULL;
 		}
 		uint64_t fSize = lseek(*fd, 0, SEEK_END);
 		lseek(*fd, 0, SEEK_SET);
 		char *banner = getBanner(0, fSize, retFilePath, type);
+		free(retFilePath);
 		return banner;
 	}
 	else if(strncmp(filePath, "/cgi-bin/", 9) == 0)
@@ -276,11 +296,13 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 		*fd = open(retFilePath, O_RDONLY);
 		if(*fd == -1)
 		{
+			free(retFilePath);
 			return NULL;
 		}
 		uint64_t fSize = lseek(*fd, 0, SEEK_END);
 		lseek(*fd, 0, SEEK_SET);
 		char *banner = getBanner(0, fSize, retFilePath, type);
+		free(retFilePath);
 		return banner;
 	}
 }
