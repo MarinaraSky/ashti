@@ -13,8 +13,6 @@
 #include <time.h>
 #include <syslog.h>
 
-#define PORTNUM 9001
-
 typedef struct socketStruct
 {
     int             socketFd;
@@ -57,7 +55,6 @@ int main(int argc, char **argv)
 	char *filePath = argv[1];
 	siteDir = calloc(strlen(filePath) + 6, sizeof(*siteDir));
 	strcat(siteDir, filePath);
-	//strcat(siteDir, "/www/");
 	t_pool *myPool = init_t_pool(8);
 
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -69,10 +66,15 @@ int main(int argc, char **argv)
 		perror("Unable to set socket options.\n");
 		exit(1);
 	}
+	uint64_t portNum = getuid();
+	if(portNum < 1024)
+	{
+		portNum = 9001;
+	}
 	struct sockaddr_in address = {
 		.sin_family = AF_INET,
 		.sin_addr.s_addr = INADDR_ANY,
-		.sin_port = htons(PORTNUM)
+		.sin_port = htons(portNum)
 	};
 	socketStruct    mySock = {
 		.socketFd = fd,
