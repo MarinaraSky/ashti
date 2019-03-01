@@ -1,4 +1,4 @@
-#include "threads.h"
+#include "Threads.h"
 #include <pthread.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -15,11 +15,17 @@ typedef struct args
 }args;
 
 static void
-working(args *create);
+Threads_working(args *create);
+
+static queue_t 
+*Threads_initJobs(void);
+
+static uint64_t
+Threads_getJob(queue_t *jobs);
 
 void parseHTML(uint64_t job);
 
-t_pool *init_t_pool(uint64_t numOfThreads)
+t_pool *Threads_initThreadPool(uint64_t numOfThreads)
 {
 	if(numOfThreads == 0)
 	{
@@ -44,7 +50,7 @@ t_pool *init_t_pool(uint64_t numOfThreads)
 		fprintf(stderr, "Failed mutex initialization\n");
 		exit(7);
 	}
-	pool->queue = init_jobs();
+	pool->queue = Threads_initJobs();
 	for(uint64_t i = 0; i < numOfThreads; i++)
 	{
 		args *create = calloc(1, sizeof(*create));
@@ -55,27 +61,19 @@ t_pool *init_t_pool(uint64_t numOfThreads)
 		}
 		create->pool = pool;
 		create->id = i;
-		int ret = pthread_create(&pool->threads[i].thread, NULL, (func_w)working, create);
+		int ret = pthread_create(&pool->threads[i].thread, NULL, (func_w)Threads_working, create);
 		if(ret != 0)
 		{
 			fprintf(stderr, "Cannot create thread\n");
 			exit(4);
 		}
-		/*
-		ret = pthread_detach(pool->threads[i].thread);
-		if(ret != 0)
-		{
-			fprintf(stderr, "Cannot detach thread\n");
-			exit(5);
-		}
-		*/
 	}
 	return pool;
 }
 
 
 /* Planned to loop and sleep */
-void working(args *create)
+void Threads_working(args *create)
 {
 	mypthread_t curThread = create->pool->threads[create->id];
 	curThread.id = create->id;
@@ -86,7 +84,7 @@ void working(args *create)
 		sem_wait(&create->pool->mySem);
 		create->pool->working++;
 		pthread_mutex_lock(&create->pool->lock);
-		uint64_t job = get_job(create->pool->queue);
+		uint64_t job = Threads_getJob(create->pool->queue);
 		pthread_mutex_unlock(&create->pool->lock);
 		parseHTML(job);
 		create->pool->working--;
@@ -96,7 +94,7 @@ void working(args *create)
 	return;
 }
 
-void reap_t_pool(t_pool* pool, uint64_t num)
+void Threads_reapThreadPool(t_pool* pool, uint64_t num)
 {
 	for(uint64_t i = 0; i < num; i++)
 	{
@@ -107,7 +105,7 @@ void reap_t_pool(t_pool* pool, uint64_t num)
 	return;
 	
 }
-void destroy_t_pool(t_pool *pool)
+void Threads_destroyThreadPool(t_pool *pool)
 {
 	sem_destroy(&pool->mySem);
 	pthread_mutex_destroy(&pool->lock);
@@ -116,7 +114,7 @@ void destroy_t_pool(t_pool *pool)
 	free(pool);
 }
 
-queue_t *init_jobs(void)
+queue_t *Threads_initJobs(void)
 {
 	queue_t *jobs = calloc(1, sizeof(*jobs));	
 	if(jobs == NULL)
@@ -129,7 +127,7 @@ queue_t *init_jobs(void)
 	return jobs;
 }
 
-void add_job(t_pool *pool, uint64_t num)
+void Threads_addJob(t_pool *pool, uint64_t num)
 {
 	pthread_mutex_lock(&pool->lock);
 	queuelist_t *newJob = calloc(1, sizeof(*newJob));
@@ -153,7 +151,7 @@ void add_job(t_pool *pool, uint64_t num)
 	return;
 }
 
-uint64_t get_job(queue_t *jobs)
+uint64_t Threads_getJob(queue_t *jobs)
 {
 	uint64_t ret = jobs->head->num;	
 	queuelist_t *old = jobs->head;
