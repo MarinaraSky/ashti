@@ -71,6 +71,7 @@ int main(int argc, char **argv)
 	{
 		portNum = 9001;
 	}
+	printf("Binding to port: %lu\n", portNum);
 	struct sockaddr_in address = {
 		.sin_family = AF_INET,
 		.sin_addr.s_addr = INADDR_ANY,
