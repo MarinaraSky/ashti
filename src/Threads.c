@@ -67,14 +67,6 @@ t_pool *Threads_initThreadPool(uint64_t numOfThreads)
 			fprintf(stderr, "Cannot create thread\n");
 			exit(4);
 		}
-		/*
-		ret = pthread_detach(pool->threads[i].thread);
-		if(ret != 0)
-		{
-			fprintf(stderr, "Cannot detach thread\n");
-			exit(5);
-		}
-		*/
 	}
 	return pool;
 }

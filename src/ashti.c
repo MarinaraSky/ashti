@@ -21,13 +21,27 @@ typedef struct socketStruct
     int             sockaddrlen;
 } socketStruct;
 
-void parseHTML(uint64_t job);
-char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType);
-//char *buildRequest(char *filePath);
-char *buildRequest(char *filePath, uint64_t *type, int64_t *fd);
-void writeLog(char *cmd);
+/*	Begins to parse HTTP Banner request */
+static void parseHTTP(uint64_t job);
+/*	Builds response banner for request 
+ *	Takes type of banner requested
+ *	Takes size of file if its been opened
+ *	A file path to be parsed
+ *	A int pointer to set like a flag
+ */
+static char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType);
+/*	Builds response body for request 
+ * 	Takes a file path
+ * 	An int pointer to set the type
+ * 	An int pointer to return file descriptor
+ */
+static char *buildRequest(char *filePath, uint64_t *type, int64_t *fd);
+/*	Writes to syslog */
+static void writeLog(char *cmd);
 
+/* Bool for signal handler */
 uint8_t RUNNING = 1;
+/* Graceful shutdown */
 jmp_buf sigExit;
 
 void
@@ -39,6 +53,7 @@ ignoreSIGINT(
 	longjmp(sigExit, 0);
 }
 
+/* Global to store directory passed on command line */
 char *siteDir = NULL;
 
 int main(int argc, char **argv)
@@ -56,8 +71,10 @@ int main(int argc, char **argv)
 	char *filePath = argv[1];
 	siteDir = calloc(strlen(filePath) + 6, sizeof(*siteDir));
 	strcat(siteDir, filePath);
+	/* Start of threads to handle requests */
 	t_pool *myPool = Threads_initThreadPool(8);
 
+	/* Settig up socket */
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
 	if (setsockopt
@@ -91,27 +108,32 @@ int main(int argc, char **argv)
     listen(mySock.socketFd, 2);
 	int socketNum = 0;
 	setjmp(sigExit);
+	/* Work loop for the accepting of connections */
 	while(RUNNING)
 	{
 		socketNum = accept(mySock.socketFd, 
 				mySock.address, 
 				(socklen_t *)&mySock.sockaddrlen);
+		/* Passed file descriptor to threads */
 		Threads_addJob(myPool, socketNum);
 	}
+	/* Will go here with ctrl+c */
 	free(siteDir);
 	Threads_reapThreadPool(myPool, 8);
 	Threads_destroyThreadPool(myPool);
 	return 0;
 }
 
-void parseHTML(uint64_t job)
+void parseHTTP(uint64_t job)
 {
 	uint64_t size = 256;
 	char *buff = calloc(size, sizeof(*buff)+1);
 	read(job, buff, size);
 	uint64_t tokenId = 0;
 	char *savePtr = NULL;
+	/* Writing to syslog */
 	writeLog(buff);
+	/* Tokenizing request */
 	char *token = strtok_r(buff, " ", &savePtr);
 	char *reply = NULL;
 	uint64_t fileType = 0;
@@ -121,7 +143,7 @@ void parseHTML(uint64_t job)
 	{
 		switch(tokenId)
 		{
-			case(0):
+			case(0): /* Verifying GET request */
 			{
 				if(strcmp(token, "GET") != 0)
 				{
@@ -133,16 +155,12 @@ void parseHTML(uint64_t job)
 				}
 				break;
 			}
-			case(1):
+			case(1): /* Parsing resource requested */
 			{
 				reply = buildRequest(token, &fileType, &fileDesc);
 				if(reply == NULL)
 				{
 					reply = getBanner(2, 0, NULL, NULL);
-				//	write(job, reply, strlen(reply));
-				//	free(buff);
-				//j	free(reply);
-			//		return;
 				}
 				else if(fileType == 2)
 				{
@@ -150,9 +168,8 @@ void parseHTML(uint64_t job)
 				}
 				break;
 			}
-			case(2):
+			case(2): /* Chech HTTP version */
 			{
-				/* Check HTTP version */
 				if(strcmp(token, "HTTP/1.1") != 0)
 				{
 					fprintf(stderr, "Bad HTTP VERSION: %s\n", token);
@@ -163,9 +180,8 @@ void parseHTML(uint64_t job)
 				}
 				break;
 			}
-			case(3):
+			case(3):/* Verify Host */
 			{
-				/* Verify Host */
 				if(strcmp(token, "Host:") != 0)
 				{
 					fprintf(stderr, "NO HOST\n");
@@ -180,9 +196,11 @@ void parseHTML(uint64_t job)
 			}
 
 		}
+		/* Will silently ignore any other header */
 		token = strtok_r(NULL, " \r\n", &savePtr);
 		tokenId++;
 	}
+	/* File not found or cannot be opend */ 
 	if(fileDesc == -1)
 	{
 		char *error = getBanner(2, 0, NULL, NULL);
@@ -193,7 +211,7 @@ void parseHTML(uint64_t job)
 		return;
 
 	}
-	if(fileType == 0)
+	if(fileType == 0) /* text based file */
 	{
 		int64_t fSize = lseek(fileDesc, 0, SEEK_END);
 		if(fSize == -1)
@@ -223,15 +241,16 @@ void parseHTML(uint64_t job)
 		free(body);
 		write(job, reply, strlen(reply));
 	}
-	else if(fileType == 1)
+	else if(fileType == 1) /* Data file */
 	{
 		uint64_t fSize = lseek(fileDesc, 0, SEEK_END);
 		lseek(fileDesc, 0, SEEK_SET);
 		write(job, reply, strlen(reply));
 		sendfile(job, fileDesc, NULL, fSize);
 	}
-	else if(fileType == 2)
+	else if(fileType == 2) /* CGI script */
 	{
+		/* Checks if query */
 		char *cgiQuery = strchr(cgiCmd, '?');
 		if(cgiQuery != NULL)
 		{
@@ -239,6 +258,7 @@ void parseHTML(uint64_t job)
 			cgiQuery++;
 			setenv("QUERY_STRING", cgiQuery, 1);
 		}	
+		/* Does the fork and exec of cgiCmd */
 		FILE *script = popen(cgiCmd, "r");
 		char *results = NULL;
 		char *fileBuff = NULL;
@@ -260,6 +280,7 @@ void parseHTML(uint64_t job)
 			results = realloc(results, strlen(results) + numRead + 2);
 			strncat(results, fileBuff, numRead);
 		}
+		/* Checks return code of script */
 		if(pclose(script) != 0)
 		{
 			fprintf(stderr, "ERROR 500\n");
@@ -290,6 +311,7 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 	char *retFilePath = NULL;
 	if(strcmp(filePath, "/") == 0)
 	{
+		/* Builds file path */
 		asprintf(&retFilePath, basePath, siteDir, "/www/", "index.html");	
 		*fd = open(retFilePath, O_RDONLY);
 		if(*fd == -1)
@@ -303,6 +325,7 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 		free(retFilePath);
 		return banner;
 	}
+	/* Checking to see if its supposed to be a script */
 	else if(strncmp(filePath, "/cgi-bin/", 9) == 0)
 	{
 		char *file = strrchr(filePath, '/');
@@ -311,10 +334,12 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 		/* Open file and return */
 		return retFilePath;
 	}
+	/* Remaining requests will be looked for in www directory */
 	else
 	{
 		asprintf(&retFilePath, basePath, siteDir, "/www", filePath++);	
 		char *fullPath = NULL;
+		/* Attempts to resolve directory traversing */
 		fullPath = realpath(retFilePath, fullPath);
 		if(fullPath == NULL)
 		{

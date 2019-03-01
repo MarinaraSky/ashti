@@ -34,12 +34,19 @@ typedef struct t_pool
 }t_pool;
 
 
+/* Thread pool that will spawn numOfThreads */
 t_pool *Threads_initThreadPool(uint64_t numOfThreads);
 
+/* Frees up memory for thread pool */
 void Threads_destroyThreadPool(t_pool *pool);
 
+/* Adds job for thread to do, can be customized */
 void Threads_addJob(t_pool* pool, uint64_t num);
+
+/* NOT IMPLEMENTED */
 void Threads_clearJobs(queue_t *jobs);
+
+/* Joins threads and terminates */
 void Threads_reapThreadPool(t_pool* pool, uint64_t num);
 
 #endif
