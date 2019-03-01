@@ -355,7 +355,7 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 						"Content-Length:%d\r\n\r\n";
 
 	char cgiBanner[] = "HTTP/1.1 %d %s\r\n"
-					   "Content-Length:%d\r\n";
+					   "Date:%s\r\n";
 	
 	char *retString = NULL;
 	struct tm *curTime;
@@ -406,7 +406,7 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 				}
 				else
 				{
-					asprintf(&retString, cgiBanner, 200, "OK", size);
+					asprintf(&retString, cgiBanner, 200, "OK", date);
 				}
 				break;
 			}
