@@ -232,7 +232,7 @@ void parseHTML(uint64_t job)
 	}
 	else if(fileType == 2)
 	{
-		char *cgiQuery = strchr(reply, '?');
+		char *cgiQuery = strchr(cgiCmd, '?');
 		if(cgiQuery != NULL)
 		{
 			*cgiQuery = '\0';
