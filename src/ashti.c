@@ -12,6 +12,7 @@
 #include <setjmp.h>
 #include <time.h>
 #include <syslog.h>
+#include <limits.h>
 
 typedef struct socketStruct
 {
@@ -138,8 +139,12 @@ void parseHTML(uint64_t job)
 				if(reply == NULL)
 				{
 					reply = getBanner(2, 0, NULL, NULL);
+				//	write(job, reply, strlen(reply));
+				//	free(buff);
+				//j	free(reply);
+			//		return;
 				}
-				if(fileType == 2)
+				else if(fileType == 2)
 				{
 					cgiCmd = reply;
 				}
@@ -188,13 +193,22 @@ void parseHTML(uint64_t job)
 		return;
 
 	}
-	printf("Test: %lu\n", fileType);
 	if(fileType == 0)
 	{
-		uint64_t fSize = lseek(fileDesc, 0, SEEK_END);
+		int64_t fSize = lseek(fileDesc, 0, SEEK_END);
+		if(fSize == -1)
+		{
+			/* 404 */
+			char *error = getBanner(2, 0, NULL, NULL);
+			write(job, error, strlen(error));
+			free(error);
+			free(buff);
+			free(reply);
+			return;
+		}
 		lseek(fileDesc, 0, SEEK_SET);
-		char *body = calloc(1, fSize + 1);
-		uint64_t byteRead = read(fileDesc, body, fSize);
+		char *body = calloc(1, fSize + 2);
+		int64_t byteRead = read(fileDesc, body, fSize);
 		if(byteRead != fSize)
 		{
 			/* 404 */
@@ -292,7 +306,7 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 	else if(strncmp(filePath, "/cgi-bin/", 9) == 0)
 	{
 		char *file = strrchr(filePath, '/');
-		asprintf(&retFilePath, basePath, siteDir, "/cgi-bin", file++);	
+		asprintf(&retFilePath, basePath, siteDir, "/cgi-bin/", file++);	
 		*type = 2;
 		/* Open file and return */
 		return retFilePath;
@@ -300,15 +314,34 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 	else
 	{
 		asprintf(&retFilePath, basePath, siteDir, "/www", filePath++);	
+		char *fullPath = NULL;
+		fullPath = realpath(retFilePath, fullPath);
+		if(fullPath == NULL)
+		{
+			fprintf(stderr, "Failed to find full path.");
+			free(fullPath);
+			free(retFilePath);
+			return NULL;
+		}
+		char *subStr = strstr(fullPath, "/www/");
+		if(subStr == NULL)
+		{
+			/* 404 */
+			free(fullPath);
+			free(retFilePath);
+			return NULL;
+		}
 		*fd = open(retFilePath, O_RDONLY);
 		if(*fd == -1)
 		{
+			free(fullPath);
 			free(retFilePath);
 			return NULL;
 		}
 		uint64_t fSize = lseek(*fd, 0, SEEK_END);
 		lseek(*fd, 0, SEEK_SET);
 		char *banner = getBanner(0, fSize, retFilePath, type);
+		free(fullPath);
 		free(retFilePath);
 		return banner;
 	}
@@ -350,6 +383,11 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", date, "image/jpeg", size);
 					*fileType = 1;
+				}
+				else if(strcmp(fExt, ".ico") == 0)
+				{
+					asprintf(&retString, httpBanner, 200, "OK", date, "image/vnd.microsoft.icon", size);
+					*fileType = 0;
 				}
 				else if(strcmp(fExt, ".png") == 0)
 				{
