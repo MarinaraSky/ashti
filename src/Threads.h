@@ -1,3 +1,6 @@
+#ifndef THREADS_H
+#define THREADS_H
+
 #include <pthread.h>
 #include <stdint.h>
 #include <semaphore.h>
@@ -31,11 +34,12 @@ typedef struct t_pool
 }t_pool;
 
 
-t_pool *init_t_pool(uint64_t numOfThreads);
-void destroy_t_pool(t_pool *pool);
+t_pool *Threads_initThreadPool(uint64_t numOfThreads);
 
-queue_t *init_jobs(void);
-void add_job(t_pool* pool, uint64_t num);
-uint64_t get_job(queue_t *jobs);
-void clear_jobs(queue_t *jobs);
-void reap_t_pool(t_pool* pool, uint64_t num);
+void Threads_destroyThreadPool(t_pool *pool);
+
+void Threads_addJob(t_pool* pool, uint64_t num);
+void Threads_clearJobs(queue_t *jobs);
+void Threads_reapThreadPool(t_pool* pool, uint64_t num);
+
+#endif

@@ -1,4 +1,4 @@
-#include "threads.h"
+#include "Threads.h"
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <semaphore.h>
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 	char *filePath = argv[1];
 	siteDir = calloc(strlen(filePath) + 6, sizeof(*siteDir));
 	strcat(siteDir, filePath);
-	t_pool *myPool = init_t_pool(8);
+	t_pool *myPool = Threads_initThreadPool(8);
 
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
@@ -96,11 +96,11 @@ int main(int argc, char **argv)
 		socketNum = accept(mySock.socketFd, 
 				mySock.address, 
 				(socklen_t *)&mySock.sockaddrlen);
-		add_job(myPool, socketNum);
+		Threads_addJob(myPool, socketNum);
 	}
 	free(siteDir);
-	reap_t_pool(myPool, 8);
-	destroy_t_pool(myPool);
+	Threads_reapThreadPool(myPool, 8);
+	Threads_destroyThreadPool(myPool);
 	return 0;
 }
 
