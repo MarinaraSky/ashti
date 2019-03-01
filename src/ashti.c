@@ -10,6 +10,8 @@
 #include <sys/sendfile.h>
 #include <fcntl.h>
 #include <setjmp.h>
+#include <time.h>
+#include <syslog.h>
 
 #define PORTNUM 9001
 
@@ -24,6 +26,7 @@ void parseHTML(uint64_t job);
 char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType);
 //char *buildRequest(char *filePath);
 char *buildRequest(char *filePath, uint64_t *type, int64_t *fd);
+void writeLog(char *cmd);
 
 uint8_t RUNNING = 1;
 jmp_buf sigExit;
@@ -104,6 +107,7 @@ void parseHTML(uint64_t job)
 	read(job, buff, size);
 	uint64_t tokenId = 0;
 	char *savePtr = NULL;
+	writeLog(buff);
 	char *token = strtok_r(buff, " ", &savePtr);
 	char *reply = NULL;
 	uint64_t fileType = 0;
@@ -310,6 +314,7 @@ char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
 char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 {
 	char httpBanner[] = "HTTP/1.1 %d %s\r\n"
+						"Date:%s\r\n"
 						"Content-Type:%s\r\n"
 						"Content-Length:%d\r\n\r\n";
 
@@ -317,6 +322,12 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 					   "Content-Length:%d\r\n";
 	
 	char *retString = NULL;
+	struct tm *curTime;
+	time_t localTime;
+	time(&localTime);
+	curTime = localtime(&localTime);
+	char *date = asctime(curTime);
+	date[strlen(date)-1] = '\0';
 	switch(type)
 	{
 		case(0): 	/* OK */
@@ -324,32 +335,32 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 				char *fExt = strrchr(fLoc, '.');
 				if(strcmp(fExt, ".css") == 0)
 				{
-					asprintf(&retString, httpBanner, 200, "OK", "text/css", size);
+					asprintf(&retString, httpBanner, 200, "OK", date, "text/css", size);
 					*fileType = 0;
 				}
 				else if(strcmp(fExt, ".txt") == 0)
 				{
-					asprintf(&retString, httpBanner, 200, "OK", "text/plain", size);
+					asprintf(&retString, httpBanner, 200, "OK", date, "text/plain", size);
 					*fileType = 0;
 				}
 				else if(strcmp(fExt, ".jpeg") == 0)
 				{
-					asprintf(&retString, httpBanner, 200, "OK", "image/jpeg", size);
+					asprintf(&retString, httpBanner, 200, "OK", date, "image/jpeg", size);
 					*fileType = 1;
 				}
 				else if(strcmp(fExt, ".png") == 0)
 				{
-					asprintf(&retString, httpBanner, 200, "OK", "image/png", size);
+					asprintf(&retString, httpBanner, 200, "OK", date, "image/png", size);
 					*fileType = 1;
 				}
 				else if(strcmp(fExt, ".gif") == 0)
 				{
-					asprintf(&retString, httpBanner, 200, "OK", "image/gif", size);
+					asprintf(&retString, httpBanner, 200, "OK", date, "image/gif", size);
 					*fileType = 1;
 				}
 				else if(strcmp(fExt, ".html") == 0)
 				{
-					asprintf(&retString, httpBanner, 200, "OK", "text/html", size);
+					asprintf(&retString, httpBanner, 200, "OK", date, "text/html", size);
 					*fileType = 0;
 				}
 				else
@@ -369,7 +380,7 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 					"<h2>Error 400</h2>\n"
 					"</body>\n"
 					"</html>\n";
-				asprintf(&retString, httpBanner, 400, "Bad Request", "text/html", strlen(err400));
+				asprintf(&retString, httpBanner, 400, "Bad Request", date, "text/html", strlen(err400));
 				retString = realloc(retString, strlen(retString) + strlen(err400) + 1);
 				strcat(retString, err400);
 				break;
@@ -385,7 +396,7 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 					"<h2>Error 404</h2>\n"
 					"</body>\n"
 					"</html>\n";
-				asprintf(&retString, httpBanner, 404, "Not Found", "text/html", strlen(err404));
+				asprintf(&retString, httpBanner, 404, "Not Found", date, "text/html", strlen(err404));
 				retString = realloc(retString, strlen(retString) + strlen(err404) + 1);
 				strcat(retString, err404);
 				break;
@@ -401,7 +412,7 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 					"<h2>Error 500</h2>\n"
 					"</body>\n"
 					"</html>\n";
-				asprintf(&retString, httpBanner, 500, "Internal Server Error", "text/html", strlen(err500));
+				asprintf(&retString, httpBanner, 500, "Internal Server Error", date, "text/html", strlen(err500));
 				retString = realloc(retString, strlen(retString) + strlen(err500) + 1);
 				strcat(retString, err500);
 				break;
@@ -409,4 +420,16 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 			break;
 	}
 	return retString;
+}
+
+void writeLog(char *cmd)
+{
+	struct tm *curTime;
+	time_t localTime;
+	time(&localTime);
+	curTime = localtime(&localTime);
+	char *date = asctime(curTime);
+	openlog("jspence_ashti", LOG_PID | LOG_NOWAIT | LOG_CONS, LOG_LOCAL0);
+	syslog(LOG_INFO, "Page Requested: %s\nTime: %s", cmd, date);
+	closelog();
 }
