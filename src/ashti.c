@@ -21,7 +21,9 @@ typedef struct socketStruct
 } socketStruct;
 
 void parseHTML(uint64_t job);
-char *getBanner(uint64_t type, uint64_t size, char *fLoc);
+char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType);
+//char *buildRequest(char *filePath);
+char *buildRequest(char *filePath, uint64_t *type, int64_t *fd);
 
 uint8_t RUNNING = 1;
 jmp_buf sigExit;
@@ -35,7 +37,7 @@ ignoreSIGINT(
 	longjmp(sigExit, 0);
 }
 
-char *wwwDir = NULL;
+char *siteDir = NULL;
 
 int main(int argc, char **argv)
 {
@@ -50,9 +52,9 @@ int main(int argc, char **argv)
     };
     sigaction(SIGINT, &ignore, NULL);
 	char *filePath = argv[1];
-	wwwDir = calloc(strlen(filePath) + 6, sizeof(*wwwDir));
-	strcat(wwwDir, filePath);
-	strcat(wwwDir, "/www/");
+	siteDir = calloc(strlen(filePath) + 6, sizeof(*siteDir));
+	strcat(siteDir, filePath);
+	//strcat(siteDir, "/www/");
 	t_pool *myPool = init_t_pool(8);
 
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -89,7 +91,7 @@ int main(int argc, char **argv)
 				(socklen_t *)&mySock.sockaddrlen);
 		add_job(myPool, socketNum);
 	}
-	free(wwwDir);
+	free(siteDir);
 	reap_t_pool(myPool, 8);
 	destroy_t_pool(myPool);
 	return 0;
@@ -103,6 +105,10 @@ void parseHTML(uint64_t job)
 	uint64_t tokenId = 0;
 	char *savePtr = NULL;
 	char *token = strtok_r(buff, " ", &savePtr);
+	char *reply = NULL;
+	uint64_t fileType = 0;
+	int64_t fileDesc = 0;
+	char *cgiCmd = NULL;
 	while(token != NULL)
 	{
 		switch(tokenId)
@@ -111,138 +117,197 @@ void parseHTML(uint64_t job)
 			{
 				if(strcmp(token, "GET") != 0)
 				{
-					char *error = getBanner(1, 0, NULL);
+					char *error = getBanner(1, 0, NULL, NULL);
 					write(job, error, strlen(error));
 					free(error);
 					free(buff);
-					free(savePtr);
 					return;
 				}
 				break;
 			}
 			case(1):
 			{
-				char *banner = NULL;
-				char *fileLoc = NULL;
-				if(strcmp(token, "/") == 0)
+				reply = buildRequest(token, &fileType, &fileDesc);
+				if(reply == NULL)
 				{
-					fileLoc = calloc(strlen(wwwDir) + strlen("index.html") + 1, sizeof(*fileLoc));
-					strcpy(fileLoc, wwwDir); /* Makes local copy of www dir string */
-					strcat(fileLoc, "index.html"); /* Adds index to file string */
-					int64_t index = open(fileLoc, O_RDONLY);
-					if(index == -1)
-					{
-						printf("ERROR 404\n");
-						banner = getBanner(2, 0, NULL);
-						write(job, banner, strlen(banner));
-						free(fileLoc);
-						free(banner);
-						free(buff);
-						return;
-					}
-					uint64_t fSize = lseek(index, 0, SEEK_END);
-					lseek(index, 0, SEEK_SET);
-					banner = getBanner(0, fSize, fileLoc);
-					printf("Testing: %s\n", fileLoc);
-					write(job, banner, strlen(banner));
-					sendfile(job, index, NULL, fSize);
-					
+					reply = getBanner(2, 0, NULL, NULL);
 				}
-				else
+				if(fileType == 2)
 				{
-					fileLoc = calloc(strlen(wwwDir) + strlen(token) + 1, sizeof(*fileLoc));
-					strcpy(fileLoc, wwwDir); /* Makes local copy of www dir string */
-					strcat(fileLoc, token + 1); /* Adds the rest of file path to file string */
-					int64_t index = open(fileLoc, O_RDONLY);
-					printf("Testing1: %s\n", fileLoc);
-					if(index == -1)
-					{
-						char *testDir = calloc(strlen(wwwDir) + strlen(token) + 1, sizeof(*fileLoc));
-						strncpy(testDir, wwwDir, strlen(wwwDir) - 4); /* Takes off www part of dir string */ 
-						strcat(testDir, token + 1); /* Adds rest of file path to dir string */
-						char *cgiQuery = strchr(testDir, '?');
-						if(cgiQuery != NULL)
-						{
-							*cgiQuery = '\0';
-							cgiQuery++;
-							setenv("QUERY_STRING", cgiQuery, 1);
-						}	
-						int64_t index = open(testDir, O_RDONLY);
-						if(index == -1)
-						{
-							printf("ERROR 404\n");
-							banner = getBanner(2, 0, NULL);
-							write(job, banner, strlen(banner));
-							free(fileLoc);
-							free(banner);
-							free(buff);
-							return;
-						}
-						/* Script */
-						printf("Trying %s\n", testDir);
-						testDir = realloc(testDir, strlen(testDir) + strlen(" 2>/dev/null") + 1);
-						strcat(testDir, " 2>/dev/null");
-						FILE *script = popen(testDir, "r");
-						char *results = NULL;
-						char *fileBuff = NULL;
-						if(script != NULL)
-						{
-							results = calloc(257, sizeof(*results));
-							fileBuff = calloc(257, sizeof(*fileBuff));
-							if(results == NULL || fileBuff == NULL)
-							{
-								fprintf(stderr, "Cgi buffs calloc failed\n");
-								exit(10);
-							}
-							int numRead = 0;
-							while((numRead = fread(fileBuff, 1, 256, script)) == 256)
-							{
-								results = realloc(results, strlen(results) + numRead + 2);
-								strncat(results, fileBuff, numRead);
-							}
-							results = realloc(results, strlen(results) + numRead + 2);
-							strncat(results, fileBuff, numRead);
-						}
-						if(pclose(script) != 0)
-						{
-							fprintf(stderr, "ERROR 500\n");
-							banner = getBanner(3, 0, NULL);
-							write(job, banner, strlen(banner));
-							free(banner);
-							free(buff);
-							free(fileLoc);
-							free(testDir);
-							return;
-						}
-						banner = getBanner(0, strlen(results), testDir);
-						write(job, banner, strlen(banner));
-						write(job, results, strlen(results));
-						free(testDir);
-						free(results);
-						free(fileBuff);
-						free(fileLoc);
-						free(banner);
-						break;
-					}
-					uint64_t fSize = lseek(index, 0, SEEK_END);
-					lseek(index, 0, SEEK_SET);
-					char *banner = getBanner(0, fSize, fileLoc);
-					write(job, banner, strlen(banner));
-					sendfile(job, index, NULL, fSize);
-					free(banner);
-					free(fileLoc);
+					cgiCmd = reply;
 				}
 				break;
 			}
+			case(2):
+			{
+				/* Check HTTP version */
+				if(strcmp(token, "HTTP/1.1") != 0)
+				{
+					fprintf(stderr, "Bad HTTP VERSION: %s\n", token);
+					char *error = getBanner(1, 0, NULL, NULL);
+					write(job, error, strlen(error));
+					free(buff);
+					return;
+				}
+				break;
+			}
+			case(3):
+			{
+				/* Verify Host */
+				if(strcmp(token, "Host:") != 0)
+				{
+					fprintf(stderr, "NO HOST\n");
+					char *error = getBanner(1, 0, NULL, NULL);
+					write(job, error, strlen(error));
+					free(reply);
+					free(buff);
+					free(error);
+					return;
+				}
+				break;
+			}
+
 		}
-		token = strtok_r(NULL, " ", &savePtr);
+		token = strtok_r(NULL, " \r\n", &savePtr);
 		tokenId++;
 	}
+	if(fileDesc == -1)
+	{
+		char *error = getBanner(2, 0, NULL, NULL);
+		write(job, error, strlen(error));
+		free(buff);
+		free(reply);
+		free(error);
+		return;
+
+	}
+	printf("Test: %lu\n", fileType);
+	if(fileType == 0)
+	{
+		uint64_t fSize = lseek(fileDesc, 0, SEEK_END);
+		lseek(fileDesc, 0, SEEK_SET);
+		char *body = calloc(1, fSize + 1);
+		uint64_t byteRead = read(fileDesc, body, fSize);
+		if(byteRead != fSize)
+		{
+			/* 404 */
+			char *error = getBanner(2, 0, NULL, NULL);
+			write(job, error, strlen(error));
+			free(buff);
+			free(reply);
+			return;
+		}
+		reply = realloc(reply, strlen(body) + strlen(reply) + 1);
+		strcat(reply, body);
+		free(body);
+		write(job, reply, strlen(reply));
+	}
+	else if(fileType == 1)
+	{
+		uint64_t fSize = lseek(fileDesc, 0, SEEK_END);
+		lseek(fileDesc, 0, SEEK_SET);
+		write(job, reply, strlen(reply));
+		sendfile(job, fileDesc, NULL, fSize);
+	}
+	else if(fileType == 2)
+	{
+		char *cgiQuery = strchr(reply, '?');
+		if(cgiQuery != NULL)
+		{
+			*cgiQuery = '\0';
+			cgiQuery++;
+			setenv("QUERY_STRING", cgiQuery, 1);
+		}	
+		FILE *script = popen(cgiCmd, "r");
+		char *results = NULL;
+		char *fileBuff = NULL;
+		if(script != NULL)
+		{
+			results = calloc(257, sizeof(*results));
+			fileBuff = calloc(257, sizeof(*fileBuff));
+			if(results == NULL || fileBuff == NULL)
+			{
+				fprintf(stderr, "Cgi buffs calloc failed\n");
+				exit(10);
+			}
+			int numRead = 0;
+			while((numRead = fread(fileBuff, 1, 256, script)) == 256)
+			{
+				results = realloc(results, strlen(results) + numRead + 2);
+				strncat(results, fileBuff, numRead);
+			}
+			results = realloc(results, strlen(results) + numRead + 2);
+			strncat(results, fileBuff, numRead);
+		}
+		if(pclose(script) != 0)
+		{
+			fprintf(stderr, "ERROR 500\n");
+			reply = getBanner(3, 0, NULL, NULL);
+			write(job, reply, strlen(reply));
+			free(buff);
+			free(fileBuff);
+			free(results);
+			free(cgiCmd);
+			free(reply);
+			return;
+		}
+		char *banner = getBanner(0, strlen(results), reply, NULL);
+		write(job, banner, strlen(banner));
+		write(job, results, strlen(results));
+		free(fileBuff);
+		free(results);
+		free(banner);
+	}
+	free(reply);
 	free(buff);
 	return;
 }
 
-char *getBanner(uint64_t type, uint64_t size, char *fLoc)
+char *buildRequest(char *filePath, uint64_t *type, int64_t *fd)
+{
+	char basePath[] = "%s%s%s";
+	char *retFilePath = NULL;
+	if(strcmp(filePath, "/") == 0)
+	{
+		asprintf(&retFilePath, basePath, siteDir, "/www/", "index.html");	
+		*fd = open(retFilePath, O_RDONLY);
+		if(*fd == -1)
+		{
+			free(retFilePath);
+			return NULL;
+		}
+		uint64_t fSize = lseek(*fd, 0, SEEK_END);
+		lseek(*fd, 0, SEEK_SET);
+		char *banner = getBanner(0, fSize, retFilePath, type);
+		free(retFilePath);
+		return banner;
+	}
+	else if(strncmp(filePath, "/cgi-bin/", 9) == 0)
+	{
+		char *file = strrchr(filePath, '/');
+		asprintf(&retFilePath, basePath, siteDir, "/cgi-bin", file++);	
+		*type = 2;
+		/* Open file and return */
+		return retFilePath;
+	}
+	else
+	{
+		asprintf(&retFilePath, basePath, siteDir, "/www", filePath++);	
+		*fd = open(retFilePath, O_RDONLY);
+		if(*fd == -1)
+		{
+			free(retFilePath);
+			return NULL;
+		}
+		uint64_t fSize = lseek(*fd, 0, SEEK_END);
+		lseek(*fd, 0, SEEK_SET);
+		char *banner = getBanner(0, fSize, retFilePath, type);
+		free(retFilePath);
+		return banner;
+	}
+}
+
+char *getBanner(uint64_t type, uint64_t size, char *fLoc, uint64_t *fileType)
 {
 	char httpBanner[] = "HTTP/1.1 %d %s\r\n"
 						"Content-Type:%s\r\n"
@@ -260,26 +325,32 @@ char *getBanner(uint64_t type, uint64_t size, char *fLoc)
 				if(strcmp(fExt, ".css") == 0)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "text/css", size);
+					*fileType = 0;
 				}
 				else if(strcmp(fExt, ".txt") == 0)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "text/plain", size);
+					*fileType = 0;
 				}
 				else if(strcmp(fExt, ".jpeg") == 0)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "image/jpeg", size);
+					*fileType = 1;
 				}
 				else if(strcmp(fExt, ".png") == 0)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "image/png", size);
+					*fileType = 1;
 				}
 				else if(strcmp(fExt, ".gif") == 0)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "image/gif", size);
+					*fileType = 1;
 				}
 				else if(strcmp(fExt, ".html") == 0)
 				{
 					asprintf(&retString, httpBanner, 200, "OK", "text/html", size);
+					*fileType = 0;
 				}
 				else
 				{
