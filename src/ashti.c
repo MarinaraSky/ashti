@@ -22,7 +22,7 @@ typedef struct socketStruct
 } socketStruct;
 
 /*	Begins to parse HTTP Banner request */
-static void parseHTTP(uint64_t job);
+void parseHTTP(uint64_t job);
 /*	Builds response banner for request 
  *	Takes type of banner requested
  *	Takes size of file if its been opened
@@ -209,7 +209,6 @@ void parseHTTP(uint64_t job)
 		free(reply);
 		free(error);
 		return;
-
 	}
 	if(fileType == 0) /* text based file */
 	{

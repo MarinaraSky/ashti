@@ -23,7 +23,7 @@ static queue_t
 static uint64_t
 Threads_getJob(queue_t *jobs);
 
-void parseHTML(uint64_t job);
+void parseHTTP(uint64_t job);
 
 t_pool *Threads_initThreadPool(uint64_t numOfThreads)
 {
@@ -86,7 +86,7 @@ void Threads_working(args *create)
 		pthread_mutex_lock(&create->pool->lock);
 		uint64_t job = Threads_getJob(create->pool->queue);
 		pthread_mutex_unlock(&create->pool->lock);
-		parseHTML(job);
+		parseHTTP(job);
 		create->pool->working--;
 		close(job);
 	}
