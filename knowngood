@@ -1,0 +1,77 @@
+HTTP/1.1 200 OK
+Date:Fri Mar  1 15:45:45 2019
+Content-Type:text/plain
+Content-Length:1649
+
+My captors continued to taunt me with bizarre little dangling objects.  They dine lavishly on fresh meat, while I am forced to eat dry cereal.  The only thing that keeps me going is the hope of escape, and the mild satisfaction I get from clawing the furniture. Tomorrow I may eat another house plant.
+
+Today my attempt to kill my captors by weaving around their feet while they were walking almost succeeded.  Maybe I should try this at the top of the stairs.
+
+In an attempt to disgust and repulse these vile oppressors, I once again induced myself to vomit on their favorite chair.  I must try this on their bed.
+
+Decapitated a mouse and brought them the headless body in an attempt to make them aware of what I am capable of, and to try to strike fear into their hearts.  They only cooed and condescended about what a good little kitty cat I was.  This is not working according to plan.
+
+There was some sort of gathering of their accomplices.  I was placed in solitary confinement throughout the event.  However, I could hear the noise and smell the food. More important, I overheard that my confinement was due to my powers of inducing something called ' allergies.'  Must learn what this is and how to use it to my advantage.
+
+I am convinced the other captives are flunkies and maybe snitches.  The dog is routinely released and seems more than happy to return.  He is obviously a half-wit.
+
+The bird, on the other hand, has got to be an informant. He speaks with them regularly, and I am certain he reports my every move.  Due to his current placement in the metal room, his safety is assured. But I can wait....
+
+It's only a matter of time. 
+HTTP/1.1 200 OK
+Date:Fri Mar  1 15:45:45 2019
+Content-Type:text/plain
+Content-Length:12
+
+Hello World
+HTTP/1.1 200 OK
+Date:Fri Mar  1 15:45:45 2019
+Content-Type:text/html
+Content-Length:501
+
+<!doctype html>
+<html>
+	<head>
+		<title>Home</title>
+	</head>
+	<body>
+		<h2>Welcome to my site</h2>
+		This is some text
+		<br></br>
+		<a href="/images/oh_no.png">PNG SUPPORT</a><br></br>
+		<a href="/images/relaxcat.jpeg">JPEG SUPPORT</a><br></br>
+		<a href="/images/tng.gif">GIF SUPPORT</a><br></br>
+		<a href="/txt/catstory.txt">TXT SUPPORT</a><br></br>
+		<a href="/cgi-bin/base.py">CGI SUPPORT</a><br></br>
+		<a href="/cgi-bin/basequery.py?my_id=100">CGI Query SUPPORT</a><br></br>
+	</body>
+</html>
+HTTP/1.1 200 OK
+Date:Fri Mar  1 15:45:45 2019
+Content-Type:text/html
+Content-Length:182
+
+<!doctype html>
+<html>
+    <head>
+        <title>CGI</title>
+    </head>
+    <body>
+        <h2>Welcome to my CGI</h2>
+        This is some text
+        <br></br>
+    </body>
+</html>HTTP/1.1 500 Internal Server Error
+Date:Fri Mar  1 15:45:45 2019
+Content-Type:text/html
+Content-Length:127
+
+<!doctype html>
+<html lang="en">
+<head>
+<title>Internal Server Error</title>
+</head>
+<body>
+<h2>Error 500</h2>
+</body>
+</html>
